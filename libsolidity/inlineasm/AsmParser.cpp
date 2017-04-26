@@ -196,22 +196,31 @@ assembly::Statement Parser::parseElementaryOperation(bool _onlySinglePusher)
 		}
 		else
 			ret = Identifier{location(), literal};
+		m_scanner->next();
 		break;
 	}
 	case Token::StringLiteral:
 	case Token::Number:
 	{
-		ret = Literal{
+		Literal literal{
 			location(),
 			m_scanner->currentToken() == Token::Number,
-			m_scanner->currentLiteral()
+			m_scanner->currentLiteral(),
+			""
 		};
+		m_scanner->next();
+		if (m_julia)
+		{
+			expectToken(Token::Colon);
+			literal.location.end = endPosition();
+			literal.type = expectAsmIdentifier();
+		}
+		ret = std::move(literal);
 		break;
 	}
 	default:
 		fatalParserError("Expected elementary inline assembly operation.");
 	}
-	m_scanner->next();
 	return ret;
 }
 
@@ -219,7 +228,7 @@ assembly::VariableDeclaration Parser::parseVariableDeclaration()
 {
 	VariableDeclaration varDecl = createWithLocation<VariableDeclaration>();
 	expectToken(Token::Let);
-	varDecl.name = expectAsmIdentifier();
+	varDecl.variable = parseTypedName();
 	expectToken(Token::Colon);
 	expectToken(Token::Assign);
 	varDecl.value.reset(new Statement(parseExpression()));
@@ -235,7 +244,7 @@ assembly::FunctionDefinition Parser::parseFunctionDefinition()
 	expectToken(Token::LParen);
 	while (m_scanner->currentToken() != Token::RParen)
 	{
-		funDef.arguments.push_back(expectAsmIdentifier());
+		funDef.arguments.emplace_back(parseTypedName());
 		if (m_scanner->currentToken() == Token::RParen)
 			break;
 		expectToken(Token::Comma);
@@ -247,7 +256,7 @@ assembly::FunctionDefinition Parser::parseFunctionDefinition()
 		expectToken(Token::GreaterThan);
 		while (true)
 		{
-			funDef.returns.push_back(expectAsmIdentifier());
+			funDef.returns.emplace_back(parseTypedName());
 			if (m_scanner->currentToken() == Token::LBrace)
 				break;
 			expectToken(Token::Comma);
@@ -320,6 +329,19 @@ assembly::Statement Parser::parseFunctionalInstruction(assembly::Statement&& _in
 		fatalParserError("Assembly instruction or function name required in front of \"(\")");
 
 	return {};
+}
+
+TypedName Parser::parseTypedName()
+{
+	TypedName typedName = createWithLocation<TypedName>();
+	typedName.name = expectAsmIdentifier();
+	if (m_julia)
+	{
+		expectToken(Token::Colon);
+		typedName.location.end = endPosition();
+		typedName.type = expectAsmIdentifier();
+	}
+	return typedName;
 }
 
 string Parser::expectAsmIdentifier()

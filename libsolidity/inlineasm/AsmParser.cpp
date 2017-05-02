@@ -201,6 +201,8 @@ assembly::Statement Parser::parseElementaryOperation(bool _onlySinglePusher)
 	}
 	case Token::StringLiteral:
 	case Token::Number:
+	case Token::TrueLiteral:
+	case Token::FalseLiteral:
 	{
 		Literal literal{
 			location(),
@@ -215,6 +217,8 @@ assembly::Statement Parser::parseElementaryOperation(bool _onlySinglePusher)
 			literal.location.end = endPosition();
 			literal.type = expectAsmIdentifier();
 		}
+		else if (m_scanner->currentToken() == Token::TrueLiteral || m_scanner->currentToken() == Token::FalseLiteral)
+			fatalParserError("True and false are not valid literals.");
 		ret = std::move(literal);
 		break;
 	}
